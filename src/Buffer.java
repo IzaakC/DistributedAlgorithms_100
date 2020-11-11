@@ -13,8 +13,8 @@ public class Buffer{
     }
 
     // Implementation of {(m, k, Vm) in B | D_k(m)}
-    // aka set of msgs that are now deliverible
-    // also removes the deliveribale msgs from the buffer.
+    // aka set of msgs that are now deliverable
+    // also removes the deliverable msgs from the buffer.
     public ArrayList<Msg> getDeliverableMsgs(VectorClock local_clock){
         ArrayList<Msg> result = new ArrayList<Msg>();
         
