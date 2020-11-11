@@ -10,19 +10,19 @@ public class VectorClock{
             clock.add(0);
     }
 
-    // compare function to check if "this" >= other
-    boolean D_j(VectorClock other, int source_pid){
+    // compare function to check if V + e_j >= V_m
+    boolean D_j(VectorClock Vm, int source_pid){
         
-        if(this.clock.size() != other.clock.size()){
+        if(this.clock.size() != Vm.clock.size()){
             System.out.println("Vector clocks not equal in length..");
             return false;
-        }   
+        }
         
         boolean result = true;
         increment(source_pid);
         
         for(int i = 0; i < clock.size(); i++){
-            if( this.clock.get(i) < other.clock.get(i)){
+            if( this.clock.get(i) < Vm.clock.get(i)){
                 result = false;
                 break;
             }
@@ -35,7 +35,6 @@ public class VectorClock{
     void increment(int i){
         clock.set(i, clock.get(i) + 1);
     }
-
 
     void decrement(int i){
         clock.set(i, clock.get(i) - 1);

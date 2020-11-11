@@ -18,17 +18,24 @@ public class Process extends UnicastRemoteObject implements ProcessInterface {
         // todo: establish connections
     }
 
-    public void uponReceipt(Msg msg){
+    // upon reception event: called by a remote JVM
+    public void uponReceiptionEvent(Msg msg){
+        // check if the msg is deliveribale (if this process is up-to-date according to the sender)
         if(local_clock.D_j(msg.Vm, msg.source_pid)){
             deliver(msg);
+
+            // deliver msgs that have become available by delevering the new msg.
             ArrayList<Msg> deliverables = buffer.getDeliverableMsgs(local_clock);
             while(deliverables.size() > 0){
                 for(Msg _msg : deliverables)
                     deliver(_msg);
+                
+                // check for new deliverable msgs
+                deliverables = buffer.getDeliverableMsgs(local_clock);
             }
             
         }
-        else
+        else // can not deliver yet, put it in the buffer
             buffer.insert(msg);
     }
 
