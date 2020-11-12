@@ -1,11 +1,13 @@
 import java.util.ArrayList;
+import java.io.*;
 
-public class VectorClock{
+public class VectorClock implements Serializable{
     // the vector clock, indexed by process id (int)
     public ArrayList<Integer> clock;
 
     // constructor, initializes all clock values to zero
     public VectorClock(int num_processes){
+        this.clock = new ArrayList<Integer>();
         for(int i = 0; i < num_processes; i++)
             clock.add(0);
     }
@@ -32,11 +34,17 @@ public class VectorClock{
         return result;
     }
 
-    void increment(int i){
+    public void increment(int i){
         clock.set(i, clock.get(i) + 1);
     }
 
-    void decrement(int i){
+    public void decrement(int i){
         clock.set(i, clock.get(i) - 1);
+    }
+
+    public void print(){
+        for(Integer c : clock)
+            System.out.printf(" %d", c);
+        System.out.printf("\n");
     }
 }   

@@ -6,6 +6,7 @@ public class Buffer{
     private ArrayList<ArrayList<Msg>> buffer;
 
     public Buffer(int num_processes){
+        buffer = new ArrayList<ArrayList<Msg>>();
         for(int i = 0; i < num_processes; i++){
             // give each process a list
             buffer.add(new ArrayList<Msg>());
