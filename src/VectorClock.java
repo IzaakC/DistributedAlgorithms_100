@@ -24,7 +24,7 @@ public class VectorClock implements Serializable{
         increment(source_pid);
         
         for(int i = 0; i < clock.size(); i++){
-            if( this.clock.get(i) < Vm.clock.get(i)){
+            if(this.clock.get(i) < Vm.clock.get(i)){
                 result = false;
                 break;
             }
