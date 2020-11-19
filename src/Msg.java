@@ -11,10 +11,10 @@ public class Msg implements Serializable{
         source_pid = _source_pid;
     }
 
-    public void print(){
-        System.out.printf("Content: %s\n", content);
-        System.out.printf("Source pid: %d\n", source_pid);
-        System.out.printf("Vector clock:");
+    public void print(String spacer){
+        System.out.printf("%sContent: %s\n",  spacer,content);
+        System.out.printf("%sSource pid: %d\n", spacer, source_pid);
+        System.out.printf("%sVector clock:", spacer);
         Vm.print();
     }
 }
