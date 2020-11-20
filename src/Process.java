@@ -5,17 +5,21 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.ThreadLocalRandom;
 
+import javax.sql.rowset.spi.SyncResolver;
+
 public class Process extends UnicastRemoteObject implements ProcessInterface, Runnable {
     private ArrayList<String> msgs;
+    private ArrayList<String> order_of_arrival = new ArrayList<String>();
     private VectorClock local_clock;
     private Buffer buffer;
-    private int num_processes;
+    private int num_processes, port;
     public int pid;
 
 
-    public Process(int _pid, int _num_processes) throws RemoteException{
+    public Process(int _pid, int _num_processes, int _port) throws RemoteException{
         super();
         pid = _pid;
+        port = _port;
         local_clock = new VectorClock(_num_processes);
         buffer = new Buffer();
         msgs = new ArrayList<String>();
@@ -31,7 +35,7 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
 
             try {
                 // find the remote instance of process pid
-                ProcessInterface p = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:5000/%d", pid));
+                ProcessInterface p = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, pid));
                 
                 // and put the msg in the channel
                 p.putMsgInChannel(msg);
@@ -47,6 +51,7 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
         Timer timer = new Timer();
         int delay = ThreadLocalRandom.current().nextInt(0, 10000 + 1);
         timer.schedule(new uponReceptionEvent(msg, timer), delay);
+
     }
 
     // TimerTask that executes the uponReception method (run()) with a delay
@@ -62,6 +67,7 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
         public synchronized void run(){
             // check if the msg is deliverable (if this process is up-to-date according to the sender)
             synchronized(Process.this){
+                order_of_arrival.add(msg.content);
                 if(local_clock.D_j(msg.Vm, msg.source_pid)){
                     deliver(msg);
 
@@ -100,11 +106,17 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
             msgsString += msg + ", ";
         }
         System.out.println(msgsString);
+
+        msgsString = String.format("Order of arrival at Process %d: ", pid);
+        for (String msg : this.order_of_arrival) {
+            msgsString += msg + ", ";
+        }
+        System.out.println(msgsString);
     }
 
     public void run() {
         try {
-            java.rmi.Naming.bind(String.format("rmi://localhost:5000/%d", pid), this);  // Registering this process at the registry 
+            java.rmi.Naming.bind(String.format("rmi://localhost:%d/%d", port, pid), this);  // Registering this process at the registry 
         } catch (Exception e) {
             System.out.printf("Error starting process %d\n" + e.toString(), pid);
             return;

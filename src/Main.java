@@ -5,28 +5,33 @@ import java.util.concurrent.TimeUnit;
 
 public class Main{
     public static void main(String[] args) {
-        int num_processes;
-        int port = 0;
+        
+        // SETTINGS
+        boolean runLocally = true;
+        int num_processes = 2;
+        int port = 5001;
 
         // Read command-line argument indicating the total number of processes
-        try {
-            num_processes = Integer.parseInt(args[0]);
-            // port = Integer.parseInt(args[1]);
-        } catch (Exception e) {
-            System.out.println("Error parsing arguments: " + e.toString());
-            return;
-        }
+        // try {
+        //     num_processes = Integer.parseInt(args[0]);
+        //     // port = Integer.parseInt(args[1]);
+        // } catch (Exception e) {
+        //     System.out.println("Error parsing arguments: " + e.toString());
+        //     return;
+        // }
         
         /* Create and install a security manager.
         Note that, contrary to what one would expect, this might also break RMI calls.
         If you are working on a single host, there is no need to use a security manager. */
-        // if (System.getSecurityManager() == null) {
-        //     System.setSecurityManager(new RMISecurityManager());
-        // }
+        if (!runLocally) {
+            if (System.getSecurityManager() == null) {
+                System.setSecurityManager(new RMISecurityManager());
+            }
+        }
         
         // Start the registry on a given port
         try {
-            java.rmi.registry.LocateRegistry.createRegistry(5000);
+            java.rmi.registry.LocateRegistry.createRegistry(port);
         } catch (RemoteException e) {
             e.printStackTrace();
         }
@@ -34,7 +39,7 @@ public class Main{
         // Start the processes
         for (int pid = 0; pid < num_processes; pid++) {
             try {
-                Process p = new Process(pid, num_processes);
+                Process p = new Process(pid, num_processes, port);
                 new Thread(p).start();
             } catch (Exception e) {
                 e.printStackTrace();
@@ -52,14 +57,14 @@ public class Main{
         // Simulate; randomly pick a process that broadcasts a message containing an incremented global counter and repeat
         for(int i = 0; i < 123; i++) {
             int pid = ThreadLocalRandom.current().nextInt(0, num_processes);
+            //pid = 0;
             try {
-                ProcessInterface p = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:5000/%d", pid));
+                ProcessInterface p = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, pid));
                 p.broadcast(String.format("%d", i));
             } catch (Exception e) {
                 System.out.printf("Error broadcasting by process %d\n", pid);
                 System.out.println(e);
             }
-            
         }
         
         // Sleep for 11 seconds because msgs can be delayed by 10 seconds
@@ -74,7 +79,7 @@ public class Main{
         // Print the inboxes of the processes
         for(int pid = 0; pid < num_processes; pid++) {
             try {
-                ProcessInterface p = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:5000/%d", pid));
+                ProcessInterface p = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, pid));
                 System.out.printf("Msgs received by process %d\n", pid);
                 p.printMsgs();
             } catch (Exception e) {
