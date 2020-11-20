@@ -1,4 +1,5 @@
 
+import java.io.StreamTokenizer;
 import java.rmi.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -10,15 +11,25 @@ public class Main{
         boolean runLocally = true;
         int num_processes = 2;
         int port = 5001;
+        int start_id = 0, stop_id;
+        boolean startRegistry = true;
 
         // Read command-line argument indicating the total number of processes
-        // try {
-        //     num_processes = Integer.parseInt(args[0]);
-        //     // port = Integer.parseInt(args[1]);
-        // } catch (Exception e) {
-        //     System.out.println("Error parsing arguments: " + e.toString());
-        //     return;
-        // }
+        try {
+            if(args.length == 3){
+                startRegistry = Boolean.parseBoolean(args[0]);
+                start_id = Integer.parseInt(args[1]);
+                stop_id = Integer.parseInt(args[2]);  
+            } else {
+                System.out.println("Using default arguments");
+                startRegistry = false;
+                start_id = 0;
+                stop_id = num_processes;
+            }// port = Integer.parseInt(args[1]);
+        } catch (Exception e) {
+            System.out.println("Error parsing arguments: " + e.toString());
+            return;
+        }
         
         /* Create and install a security manager.
         Note that, contrary to what one would expect, this might also break RMI calls.
@@ -30,12 +41,13 @@ public class Main{
         }
         
         // Start the registry on a given port
-        try {
-            java.rmi.registry.LocateRegistry.createRegistry(port);
-        } catch (RemoteException e) {
-            e.printStackTrace();
+        if (startRegistry) {
+            try {
+                java.rmi.registry.LocateRegistry.createRegistry(port);
+            } catch (RemoteException e) {
+                e.printStackTrace();
+            }
         }
-        
         // Start the processes
         for (int pid = 0; pid < num_processes; pid++) {
             try {
