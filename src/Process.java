@@ -101,6 +101,7 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
     }
 
     public void printMsgs() {
+        System.out.printf("Msgs received by process %d\n", pid);
         String msgsString = String.format("Inbox of Process %d: ", pid);
         for (String msg : this.msgs) {
             msgsString += msg + ", ";
