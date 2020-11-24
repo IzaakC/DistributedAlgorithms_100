@@ -53,31 +53,52 @@ public class Main{
             }
         }
 
+        // Create the processes
+        for (int pid = start_pid; pid < stop_pid; pid++) {
+            try {
+                Petersons p = new Petersons(pid, num_processes, port);
+                new Thread(p).start();
+            } catch (Exception e) {
+                System.out.printf("Error creating process %d\n" + e.toString(), pid);
+            }            
+        }
+
+        // Wait 1 second
+        try {
+            TimeUnit.SECONDS.sleep(1);
+        } catch (Exception e) {
+            System.out.println("Error sleeping :(");
+        }
+
+        // Only the last JVM should start the processes
+        if (stop_pid < num_processes) {
+            return;
+        }
+
         // Generate IDs for the processes
+        System.out.print("Generated IDs: ");
         Set<Integer> ids = new HashSet<Integer>(num_processes);
         if(max_id_guaranteed) {
             ids.add(max_id);
+            System.out.printf("%d, ", max_id);
         }
         while(ids.size() < num_processes) {
             int id = ThreadLocalRandom.current().nextInt(min_id, max_id);
+            System.out.printf("%d, ", id);
             ids.add(id);
         }
+        System.out.println("");
 
-        // Start the processes
+        // Simulate; start the first round on all processes
         Iterator<Integer> itr = ids.iterator();
-        for (int pid = start_pid; pid < stop_pid; pid++) {
+        for (int pid = 0; pid < num_processes; pid++) {
             try {
                 int id = itr.next();
-                Petersons p = new Petersons(pid, num_processes, port, id);
-                new Thread(p).start();
-                // try {
-                //     TimeUnit.SECONDS.sleep(3);
-                // } catch (Exception e) {
-                //     System.out.println("Error sleeping :( " + e.toString());
-                // }
+                PetersonsInterface p = (PetersonsInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, pid));
+                p.set_id(id);
+                p.startRound();
             } catch (Exception e) {
-                System.out.printf("Error starting process %d\n", pid);
-                e.printStackTrace();
+                System.out.printf("Error starting process %d\n" + e.toString(), pid);
             }            
         }
 
