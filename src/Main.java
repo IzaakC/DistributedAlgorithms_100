@@ -10,11 +10,11 @@ public class Main{
     public static void main(String[] args) {
         
         // SETTINGS
-        int num_processes = 10;
+        int num_processes = 15;
         int port = 5000;
-        int min_id = 42;
-        int max_id = 123;
-        boolean max_id_guaranteed = false; // Determines whether a process gets the max_id as id; used to easily verify correctness
+        int min_id = 45;
+        int max_id = 1467;
+        boolean max_id_guaranteed = true; // Determines whether a process gets the max_id as id; used to easily verify correctness
         
         int start_pid, stop_pid;
 
@@ -65,7 +65,7 @@ public class Main{
 
         // Wait 1 second
         try {
-            TimeUnit.SECONDS.sleep(1);
+            TimeUnit.SECONDS.sleep(3);
         } catch (Exception e) {
             System.out.println("Error sleeping :(");
         }
@@ -78,7 +78,7 @@ public class Main{
         // Generate IDs for the processes
         System.out.print("Generated IDs: ");
         Set<Integer> ids = new HashSet<Integer>(num_processes);
-        if(max_id_guaranteed) {
+        if(max_id_guaranteed) { // Make sure to contain the max_id in the set
             ids.add(max_id);
             System.out.printf("%d, ", max_id);
         }
@@ -95,8 +95,7 @@ public class Main{
             try {
                 int id = itr.next();
                 PetersonsInterface p = (PetersonsInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, pid));
-                p.set_id(id);
-                p.startRound();
+                p.set_id(id);   // Centralized id setting, also marks start of the algorithm.
             } catch (Exception e) {
                 System.out.printf("Error starting process %d\n" + e.toString(), pid);
             }            
