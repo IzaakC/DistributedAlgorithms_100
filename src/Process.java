@@ -3,7 +3,7 @@ import java.rmi.*;
 import java.rmi.server.*;
 import java.util.concurrent.*;
 
-public class Petersons extends UnicastRemoteObject implements PetersonsInterface, Runnable {
+public class Process extends UnicastRemoteObject implements ProcessInterface, Runnable {
     public int pid, id, port;
     private int tid, neighbor_pid;
     boolean is_elected = false, is_active = true;
@@ -11,7 +11,7 @@ public class Petersons extends UnicastRemoteObject implements PetersonsInterface
     BlockingQueue<Integer> id_block = new LinkedBlockingDeque<Integer>();
     
     // constructor, save pid, port and calculate the neighbor id
-    public Petersons(int _pid, int num_processes, int _port) throws RemoteException {
+    public Process(int _pid, int num_processes, int _port) throws RemoteException {
         super();
         pid = _pid;
         port = _port;
@@ -41,7 +41,7 @@ public class Petersons extends UnicastRemoteObject implements PetersonsInterface
     // Sends the var to the neighbor by calling set()
     public void send(int var) {    
         try {
-            PetersonsInterface neighbor = (PetersonsInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, neighbor_pid));
+            ProcessInterface neighbor = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, neighbor_pid));
             neighbor.set(var);
         } catch (Exception e) { System.out.println(e.toString()); }
     }
