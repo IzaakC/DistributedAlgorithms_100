@@ -2,6 +2,8 @@ import java.rmi.*;
 // import java.util.concurrent.TimeUnit;
 import java.rmi.server.*;
 import java.util.concurrent.*;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class Process extends UnicastRemoteObject implements ProcessInterface, Runnable {
     public int pid, port, n, f;
@@ -18,7 +20,7 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
         port = _port;
     }
 
-    // rmi method, sets ID id this process
+    // rmi method, mark start of this process
     public void mark_start() { 
         try {
             start_block.put(0);
@@ -27,22 +29,18 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
         }
     }
 
-    // RMI method, puts a msg in the queue
+    // RMI method, puts a msg in the queue with a random delay
     public void set(String type, int round, int value) {
-        try {
-            switch(type){ 
-                case "N": notification_queue.put(new Msg(round, value)); break;
-                case "P": proposal_queue.put(new Msg(round, value));
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        Timer timer = new Timer();
+        int delay = ThreadLocalRandom.current().nextInt(0, 1000 + 1);
+        timer.schedule(new uponReceptionEvent(type, round, value, timer), delay);
     }
 
     // Broadcast message to all PIDs except our own
     public void broadcast(String type, int round, int value) {
         try {
             for (int pid = 0; pid < n; pid++) {
+                if (pid == this.pid) continue;
                 ProcessInterface destination = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, pid));
                 destination.set(type, round, value);
             }
@@ -51,22 +49,49 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
         }
     }
 
+    // TimerTask that executes the uponReception method (run()) with a delay
+    class uponReceptionEvent extends TimerTask {
+        private String type;      
+        private int round, value;
+        private Timer timer; 
+        
+        public uponReceptionEvent(String type, int round, int value, Timer timer){
+            this.type = type;
+            this.round = round;
+            this.value = value;
+            this.timer = timer;
+        }
+   
+        public void run(){
+            try {
+                switch(type){ 
+                    case "N": notification_queue.put(new Msg(round, value)); break;
+                    case "P": proposal_queue.put(new Msg(round, value));
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            timer.cancel(); // stop the timer
+        }
+    }
+
+    // Wait for n-f msgs of the expected type
     public int[] await(BlockingQueue<Msg> queue, int round) {
-        int num_expected_msgs = this.n - this.f;
+        int num_expected_msgs = n - f;
         int[] counts = {0, 0};
         while (num_expected_msgs > 0) {
             try {
                 Msg msg = queue.take();
-                if(msg.round == round){
+                if (msg.round == round){
                     num_expected_msgs--;
                     if (msg.value == 0 || msg.value == 1) {
                         counts[msg.value]++;
                     }
                 }
 
-                if(msg.round > round){
-                    queue.put(msg);
-                }
+                // due to delays and not expecting n msgs it can be possible to receive a msg from a future round (I think)
+                if (msg.round > round) queue.put(msg); // save it for later
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -91,7 +116,7 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
                 else broadcast("P", round, -1);
 
                 if (decided) {
-                    System.out.printf("Process %d decided %d\n", pid, value);
+                    System.out.printf("Process %d decided %d in round %d\n", pid, value, round);
                     return;
                 }
 
