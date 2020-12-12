@@ -1,6 +1,6 @@
 #!/bin/sh
 cd src/
 javac *.java
-rmic Petersons
+rmic Process
 java Main $1 $2
 

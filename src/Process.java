@@ -4,109 +4,111 @@ import java.rmi.server.*;
 import java.util.concurrent.*;
 
 public class Process extends UnicastRemoteObject implements ProcessInterface, Runnable {
-    public int pid, id, port;
-    private int tid, neighbor_pid;
-    boolean is_elected = false, is_active = true;
-    BlockingQueue<Integer> queue = new LinkedBlockingDeque<Integer>();
-    BlockingQueue<Integer> id_block = new LinkedBlockingDeque<Integer>();
+    public int pid, port, n, f;
+    BlockingQueue<Msg> proposal_queue = new LinkedBlockingDeque<Msg>();
+    BlockingQueue<Msg> notification_queue = new LinkedBlockingDeque<Msg>();
+    BlockingQueue<Integer> start_block = new LinkedBlockingDeque<Integer>();
     
     // constructor, save pid, port and calculate the neighbor id
-    public Process(int _pid, int num_processes, int _port) throws RemoteException {
+    public Process(int _pid, int _n, int _f, int _port) throws RemoteException {
         super();
+        n = _n;
+        f = _f;
         pid = _pid;
         port = _port;
-        neighbor_pid = (pid + 1) % num_processes;
     }
 
     // rmi method, sets ID id this process
-    public void set_id(int id) { 
+    public void mark_start() { 
         try {
-            id_block.put(id);
+            start_block.put(0);
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
-    // blocking receive
-    public int receive() {
-        int result = -1;
+    // RMI method, puts a msg in the queue
+    public void set(String type, int round, int value) {
         try {
-            result = queue.take();
+            switch(type){ 
+                case "N": notification_queue.put(new Msg(round, value)); break;
+                case "P": proposal_queue.put(new Msg(round, value));
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return result;
     }
 
-    // Sends the var to the neighbor by calling set()
-    public void send(int var) {    
+    // Broadcast message to all PIDs except our own
+    public void broadcast(String type, int round, int value) {
         try {
-            ProcessInterface neighbor = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, neighbor_pid));
-            neighbor.set(var);
-        } catch (Exception e) { System.out.println(e.toString()); }
-    }
-
-    // RMI method, puts a variable in the queue
-    public void set(int var) {
-        try {
-            queue.put(var);
+            for (int pid = 0; pid < n; pid++) {
+                ProcessInterface destination = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, pid));
+                destination.set(type, round, value);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public int[] await(BlockingQueue<Msg> queue, int round) {
+        int num_expected_msgs = this.n - this.f;
+        int[] counts = {0, 0};
+        while (num_expected_msgs > 0) {
+            try {
+                Msg msg = queue.take();
+                if(msg.round == round){
+                    num_expected_msgs--;
+                    if (msg.value == 0 || msg.value == 1) {
+                        counts[msg.value]++;
+                    }
+                }
+
+                if(msg.round > round){
+                    queue.put(msg);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        return counts;
     }
 
     // Runnable, contains the main loop of the algorithm
     public void run() {
         try {
             java.rmi.Naming.bind(String.format("rmi://localhost:%d/%d", port, pid), this);  // Registering this process at the registry
-            id = id_block.take();   // wait for start signal
-            tid = id;               // copy id to tid
-    
-            while(true) {
-                /* ----------- ACTIVE ----------*/
-                if (is_active) {
-                    // 1) Send and receive tid
-                    send(tid);
-                    int ntid = receive();
-                    if (ntid == this.id) {
-                        System.out.printf("Process %d with id %d is elected!\n", this.pid, this.id);
-                        return;
-                    }
+            start_block.take();   // wait for start signal
+            boolean decided = false;
+            int value = ThreadLocalRandom.current().nextInt(0, 2);
+            for(int round = 1; ;round++) {
+                //System.out.printf("Process %d has value %d\n", pid, value);
+                broadcast("N", round, value);
 
-                    //  2) Send and receive max(tid, ntid)
-                    send(Integer.max(ntid, tid));
-                    int nntid = receive();
-                    if (nntid == this.id) {
-                        System.out.printf("Process %d with id %d is elected!\n", this.pid, this.id);
-                        return;
-                    }
+                int[] counts = await(notification_queue, round);
+                if (counts[0] > (n + f) / 2) broadcast("P", round, 0);
+                else if (counts[1] > (n + f) / 2) broadcast("P", round, 1);
+                else broadcast("P", round, -1);
 
-                    // 3) Compare and decide whether or not to turn passive
-                    if (ntid >= tid && ntid >= nntid) {
-                        tid = ntid;
-                    } else {
-                        this.is_active = false;
-                    }
-
-                /* ----------- PASSIVE ----------*/
-                } else {
-                    // Send and relay ntid msg
-                    int ntid = receive();
-                    send(ntid);
-                    if (ntid == this.id) {
-                        System.out.printf("Process %d with id %d is elected!\n", this.pid, this.id);
-                        return;
-                    }
-                    
-                    // Send and relay nntid msg
-                    int nntid = receive();
-                    send(nntid);
-                    if (nntid == this.id) {
-                        System.out.printf("Process %d with id %d is elected!\n", this.pid, this.id);
-                        return;
-                    }
+                if (decided) {
+                    System.out.printf("Process %d decided %d\n", pid, value);
+                    return;
                 }
+
+                counts = await(proposal_queue, round);
+                if (counts[0] > f) {
+                    value = 0;
+                    if (counts[0] + counts[1] > 3*f) decided = true;
+                }
+                else if (counts[1] > f) {
+                    value = 1;
+                    if (counts[0] + counts[1] > 3*f) decided = true;
+                }
+            
+                else value = ThreadLocalRandom.current().nextInt(0, 2);
             }
+
+            
         } catch (Exception e) {
             System.out.printf("Error running process %d\n" + e.toString(), pid);
             return;

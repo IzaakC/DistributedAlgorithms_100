@@ -1,9 +1,4 @@
-import java.io.StreamTokenizer;
 import java.rmi.*;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.Set;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
 public class Main{
@@ -11,10 +6,8 @@ public class Main{
         
         // SETTINGS
         int num_processes = 15;
+        int num_processes_byzantine = (int) Math.floor(num_processes/5.0);
         int port = 5000;
-        int min_id = 45;
-        int max_id = 1467;
-        boolean max_id_guaranteed = true; // Determines whether a process gets the max_id as id; used to easily verify correctness
         
         int start_pid, stop_pid;
 
@@ -56,7 +49,7 @@ public class Main{
         // Create the processes
         for (int pid = start_pid; pid < stop_pid; pid++) {
             try {
-                Petersons p = new Petersons(pid, num_processes, port);
+                Process p = new Process(pid, num_processes, num_processes_byzantine, port);
                 new Thread(p).start();
             } catch (Exception e) {
                 System.out.printf("Error creating process %d\n" + e.toString(), pid);
@@ -75,27 +68,11 @@ public class Main{
             return;
         }
 
-        // Generate IDs for the processes
-        System.out.print("Generated IDs: ");
-        Set<Integer> ids = new HashSet<Integer>(num_processes);
-        if(max_id_guaranteed) { // Make sure to contain the max_id in the set
-            ids.add(max_id);
-            System.out.printf("%d, ", max_id);
-        }
-        while(ids.size() < num_processes) {
-            int id = ThreadLocalRandom.current().nextInt(min_id, max_id);
-            System.out.printf("%d, ", id);
-            ids.add(id);
-        }
-        System.out.println("");
-
         // Simulate; start the first round on all processes
-        Iterator<Integer> itr = ids.iterator();
         for (int pid = 0; pid < num_processes; pid++) {
             try {
-                int id = itr.next();
-                PetersonsInterface p = (PetersonsInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, pid));
-                p.set_id(id);   // Centralized id setting, also marks start of the algorithm.
+                ProcessInterface p = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, pid));
+                p.mark_start();   
             } catch (Exception e) {
                 System.out.printf("Error starting process %d\n" + e.toString(), pid);
             }            
