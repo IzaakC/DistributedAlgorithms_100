@@ -6,19 +6,20 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 public class Process extends UnicastRemoteObject implements ProcessInterface, Runnable {
-    public int pid, port, n, f;
+    public int pid, port, n, f, initial_value;
     BlockingQueue<Msg> notification_queue = new LinkedBlockingDeque<Msg>(); // Queue for N messages
     BlockingQueue<Msg> proposal_queue = new LinkedBlockingDeque<Msg>(); // Queue for P messages
     BlockingQueue<String> start_block = new LinkedBlockingDeque<String>();
     private static int max_delay = 100;
     
     // constructor, save pid, port and calculate the neighbor id
-    public Process(int _pid, int _n, int _f, int _port) throws RemoteException {
+    public Process(int _pid, int _n, int _f, int _port, int _initial_value) throws RemoteException {
         super();
         n = _n;
         f = _f;
         pid = _pid;
         port = _port;
+        initial_value = _initial_value;
     }
 
     // RMI method, mark start of this process
@@ -44,6 +45,16 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
                 ProcessInterface destination = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, pid));
                 destination.set(type, round, value);
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Send message to destination
+    public void send(String type, int round, int value, int pid) {
+        try {
+            ProcessInterface destination = (ProcessInterface) Naming.lookup(String.format("rmi://localhost:%d/%d", port, pid));
+            destination.set(type, round, value);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -106,14 +117,16 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
             java.rmi.Naming.bind(String.format("rmi://localhost:%d/%d", port, pid), this);  // Registering this process at the registry
             String mode = start_block.take();   // wait for start signal
             
-            System.out.printf("Process %d starting in mode %s\n", pid, mode);
+            // System.out.printf("Process %d starting in mode %s\n", pid, mode);
             
             switch(mode) {
                 case "regular"              : regularProcess(); break;
                 case "fail"                 : spin(); break;
                 case "random"               : byzantineRandom(); break;
-                case "randomAlwaysSend"     : byzantineRandomAlwaysSend(); break;
+                case "always send"          : byzantineRandomAlwaysSend(); break;
                 case "deliberately wrong"   : byzantineDeliberatelyWrong(); break;
+                case "different msgs"       : byzantineDifferentMsgs(); break;
+                case "fake rounds"          : byzantineFakeRound(); break;
                 default: regularProcess();
             }
             
@@ -125,7 +138,8 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
 
     public void regularProcess(){
         boolean decided = false;
-        int value = ThreadLocalRandom.current().nextInt(0, 2);
+        int value = this.initial_value;
+        System.out.printf("Initial value of correct process %d: %d\n", pid, initial_value);
         for(int round = 1; ;round++) {
             /*------- NOTIFICATION PHASE -------------------- */
 
@@ -142,7 +156,7 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
             else broadcast("P", round, -1);
             
             if (decided) {
-                System.out.printf("Process %d decided %d in round %d\n", pid, value, round);
+                System.out.printf("Correct process %d decided %d in round %d\n", pid, value, round-1);
                 return;
             }
 
@@ -159,8 +173,10 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
                 value = 1;
                 if (counts[0] + counts[1] > 3*f) decided = true;
             }
-            // else pick a random value
-            else value = ThreadLocalRandom.current().nextInt(0, 2);
+            else {
+                value = ThreadLocalRandom.current().nextInt(0, 2); // else pick a random value
+                System.out.printf("Correct process %d picked value %d when it couldn't decide in round %d\n", pid, value, round);
+            }
         }
     }
 
@@ -183,7 +199,7 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
             
             if (ThreadLocalRandom.current().nextInt(0, 1) == 0) {
                 broadcast("N", round, ThreadLocalRandom.current().nextInt(0, 2));
-            }
+                }
             await(notification_queue, round);
 
             if (ThreadLocalRandom.current().nextInt(0, 1) == 0) {
@@ -218,6 +234,41 @@ public class Process extends UnicastRemoteObject implements ProcessInterface, Ru
             if (counts[1] > f) value = 0;
             else if (counts[0] > f) value = 1;
             else value = ThreadLocalRandom.current().nextInt(0, 2);
+        }
+    }
+
+    // Sends different (random) msgs to all nodes
+    public void byzantineDifferentMsgs(){
+        int value = ThreadLocalRandom.current().nextInt(0, 2);
+        for(int round = 1; ;round++) {
+            for(int pid = 0; pid < n; pid++){
+                value = ThreadLocalRandom.current().nextInt(0, 2);
+                send("N", round, value, pid);
+            }
+            await(notification_queue, round);
+
+            for(int pid = 0; pid < n; pid++){
+                value = ThreadLocalRandom.current().nextInt(0, 2);
+                send("P", round, value, pid);
+            }
+            await(proposal_queue, round);
+        }
+    }
+
+    // Fakes its round number as if it is in the future
+    public void byzantineFakeRound(){
+        int fake_round = 5;
+        for(int round = 1; ;round++) {
+            if(round == fake_round)
+                fake_round += 5;
+            
+            for(int pid = 0; pid < n; pid++)
+                send("N", fake_round, 1, pid);
+            await(notification_queue, round);
+
+            for(int pid = 0; pid < n; pid++)
+                send("P", fake_round, 1, pid);
+            await(proposal_queue, round);
         }
     }
 }

@@ -1,19 +1,23 @@
 import java.rmi.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 public class Main{
     public static void main(String[] args) {
         
         // SETTINGS
-        int n = 15; // Number of processes
+        int n = 20; // Number of processes
         int f = (int) Math.ceil(n/5.0) - 1; // Number of Byzantine processes
+        System.out.println(f);
         int port = 5000;
         String mode;
         // mode = "regular";    // regular process 
-        // mode = "random1";    // random if a msg is sent, with random value
-        mode = "random2";    // always sends a msg, but with a random value
+        mode = "random";    // random if a msg is sent, with random value
+        // mode = "always send";    // always sends a msg, but with a random value
         // mode = "fail";       // just empties its queues
         // mode = "deliberately wrong";  // always responds with the opposite value of what a regular process would do
+        // mode = "different msgs"; // Sends different (random) msgs to all nodes
+        // mode = "fake rounds"; // Fakes its round number as if it is in the future
         
         int start_pid, stop_pid;
 
@@ -55,7 +59,8 @@ public class Main{
         // Create the processes
         for (int pid = start_pid; pid < stop_pid; pid++) {
             try {
-                Process p = new Process(pid, n, f, port);
+                int initial_value = ThreadLocalRandom.current().nextInt(0, 2);
+                Process p = new Process(pid, n, f, port, initial_value);
                 new Thread(p).start();
             } catch (Exception e) {
                 System.out.printf("Error creating process %d\n" + e.toString(), pid);
@@ -84,6 +89,6 @@ public class Main{
             } catch (Exception e) {
                 System.out.printf("Error starting process %d\n" + e.toString(), pid);
             }            
-        }
+        }        
     }
 }
